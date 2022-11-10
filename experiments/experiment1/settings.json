@@ -1,0 +1,7 @@
+
+[
+    {
+        "action": "download_file",
+        "url": "/path/to/url"
+    }
+]
