@@ -46,12 +46,12 @@ def make_pipeline(
             "num_workers": 8
         }),
         ("Init Model", {
-            "task": "InitTorchModel",
-            "input": {"tokenizer": "tokenizer"},
+            "task": "LoadPretrainedModel",
+            "input": None,
             "output": "model",
-            "name": "CBOW",
-            "hidden_size": 10,
-            "output_size": 1
+            "model": "AutoModelForSequenceClassification",
+            "source": model,
+            "num_labels": 1
         }),
         ("Load metric", {
             "task": "LoadMetrics",
@@ -88,7 +88,7 @@ def make_pipeline(
             "enable_checkpointing": True,
             "min_epochs": 1,
             "max_epochs": max_epochs,
-            "accelerator": "cpu",
+            "accelerator": "gpu",
             "devices": 1,
             "val_check_interval": 400,
             "log_every_n_steps": 50

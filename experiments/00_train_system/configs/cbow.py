@@ -88,7 +88,7 @@ def make_pipeline(
             "enable_checkpointing": True,
             "min_epochs": 1,
             "max_epochs": max_epochs,
-            "accelerator": "cpu",
+            "accelerator": "gpu",
             "devices": 1,
             "val_check_interval": 400,
             "log_every_n_steps": 50

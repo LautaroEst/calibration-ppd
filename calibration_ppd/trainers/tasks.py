@@ -65,7 +65,7 @@ class TrainSupervisedTorchModel(Task):
             ## TODO: implement saving
             pass
 
-        return pl_model
+        return model
 
     def save(self,output,output_dir):
         ## TODO: implement saving
