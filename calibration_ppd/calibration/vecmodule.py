@@ -1,8 +1,8 @@
-from torch.nn import Module, Parameter
+from torch.nn import Module
 from torch.nn.utils import vector_to_parameters, parameters_to_vector
 from torch import as_tensor as ten
 
-from fullbatch_optim import train_obj_scipy_lbfgs
+from .fullbatch_optim import train_obj_scipy_lbfgs
 
 class VecModule(Module):
     """

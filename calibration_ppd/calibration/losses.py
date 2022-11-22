@@ -1,7 +1,7 @@
 import numpy as np
 
 import torch
-from utils import onehot_encode, check_label
+from .utils import onehot_encode, check_label
 import matplotlib.pyplot as plt
 
 def CostFunction(log_probs, labels, C=None, norm=True):
@@ -39,7 +39,7 @@ def LogLoss(log_probs, labels, norm=True, priors=None):
     # frequency of the corresponding class in the test data
     # times the external prior
     ii = torch.arange(len(labels))
-    losses = -log_probs[ii, labels]
+    losses = -log_probs[labels]
     score  = torch.mean(weights*losses)
 
     return score / norm_factor

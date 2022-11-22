@@ -6,8 +6,9 @@ n_jobs = 1
 pipeline = [
     ("Calibration", {
         "task": "DiscriminativeModelCalibration",
-        "input": {"model":"bert"},
-        "output": "calibratedLogPosteriors"
+        "input": None,
+        "output": "calibratedLogPosteriors",
+        "model" :"bert"
     })
 ]
 
