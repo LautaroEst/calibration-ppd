@@ -11,7 +11,7 @@ class DiscriminativeModelCalibration(Task):
 
     def __init__(self,model):
 
-        modelOutputs = self.load("00_train_system/results/"+model)
+        modelOutputs = self.load("00_train_system/"+model)
         self.model = model
         self.priors = None #podemos probar cambiando esto
         self.targetsTraining = modelOutputs["train"]["labels"]
@@ -28,7 +28,7 @@ class DiscriminativeModelCalibration(Task):
         np.savez_compressed(output_dir+"/results.npz",logprobs=output)
 
     def load(self,output_dir):
-        with open(output_dir+"/results.pkl", 'rb') as f:
+        with open(output_dir+"_results.pkl", 'rb') as f:
             data = pickle.load(f)
         return data
 

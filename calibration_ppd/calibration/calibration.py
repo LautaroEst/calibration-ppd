@@ -1,5 +1,5 @@
 import torch
-from vecmodule import Parameter, LBFGS_Objective, lbfgs
+from vecmodule import LBFGS_Objective, lbfgs
 import losses 
 
 

@@ -1,4 +1,4 @@
-from torch.nn import Module
+from torch.nn import Module, Parameter
 from torch.nn.utils import vector_to_parameters, parameters_to_vector
 from torch import as_tensor as ten
 
