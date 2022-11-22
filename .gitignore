@@ -1,4 +1,4 @@
 __pycache__
 *.pyc
-results/
+cache/
 !results/Readme.md

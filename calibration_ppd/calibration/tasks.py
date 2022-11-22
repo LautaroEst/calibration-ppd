@@ -24,7 +24,7 @@ class DiscriminativeModelCalibration(Task):
         return {"logprobs":calibratedLogPosteriors.detach().numpy()}
 
     def save(self,output,output_dir):
-        np.savez_compressed(output_dir+"/results.npz",logprobs=output)
+        np.savez_compressed(output_dir+"/results.npz",logprobs=output["logprobs"])
 
     def load(self,output_dir):
         with open(output_dir+"_results.pkl", 'rb') as f:
