@@ -4,11 +4,10 @@ n_jobs = 1
 
 
 pipeline = [
-    ("Load Dataset", {
-        "task": "LoadQuoraDataset",
+    ("Calibration", {
+        "task": "DiscriminativeModelCalibration",
         "input": None,
-        "output": "data",
-        "cache": True
+        "output": "calibratedLogPosteriors"
     })
 ]
 
