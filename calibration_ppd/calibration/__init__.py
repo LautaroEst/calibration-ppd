@@ -1,3 +1,3 @@
 from .tasks import (
-    LoadPretrainedTokenizer
+    DiscriminativeModelCalibration
 )
