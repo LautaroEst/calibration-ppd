@@ -27,7 +27,15 @@ def make_pipeline(
         }),
         ("Encode dataset", {
             "task": "CreateDynamicPaddingDataloader",
-            "input": {"tokenizer": "tokenizer", "train": "data.training.train", "validation": "data.training.validation", "test": "data.training.test"},
+            "input": {
+                "tokenizer": "tokenizer", 
+                "training_train": "data.training.train", 
+                "training_validation": "data.training.validation", 
+                "training_test": "data.training.test",
+                "calibration_train": "data.calibration.train", 
+                "calibration_validation": "data.calibration.validation", 
+                "calibration_test": "data.calibration.test"
+            },
             "output": "encoded_data",
             "text": "question1",
             "text_pair": "question2",
@@ -79,25 +87,37 @@ def make_pipeline(
             "input": {
                 "model": "model", 
                 "loss_fn": "loss_function",
-                "train_data": "encoded_data.train",
-                "validation_data": "encoded_data.validation",
+                "train_data": "encoded_data.training_train",
+                "validation_data": "encoded_data.training_validation",
                 "optimizer": "optimizer",
                 "metrics": "metrics"
             },
-            "output": None,
+            "output": "pl_model",
             "enable_checkpointing": True,
-            "min_epochs": 1,
+            "min_epochs": 3,
             "max_epochs": max_epochs,
             "accelerator": "gpu",
             "devices": 1,
             "val_check_interval": 400,
             "log_every_n_steps": 50
+        }),
+        ("Evaluation of the model", {
+            "task": "MakePredictions",
+            "input": {
+                "model": "model",
+                "training_train": "encoded_data.training_train", 
+                "training_validation": "encoded_data.training_validation",
+                "calibration_train": "encoded_data.calibration_train", 
+                "calibration_validation": "encoded_data.calibration_validation"
+            },
+            "device": "cuda:0",
+            "output": "results"
         })
     ]
 
 train_params = dict(
     model = "bert-base-uncased",
-    max_epochs = 3,
+    max_epochs = 1,
     batch_size = 32,
     learning_rate = 1e-3,
     gradient_clip = None,
