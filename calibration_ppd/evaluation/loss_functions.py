@@ -1,7 +1,7 @@
 
 import torch
 
-torch_losses = torch.nn.modules.loss
+torch_losses = torch.nn.modules.loss.__all__
 
 def load_loss_function(name,**args):
     

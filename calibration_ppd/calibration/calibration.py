@@ -27,7 +27,7 @@ class AffineCal(LBFGS_Objective):
                 # the training process does not need to do anything.
                 self.bias = Parameter(-torch.log(self.priors))
             else:
-                self.bias = Parameter(torch.zeros(1, dtype=torch.float64))
+                self.bias = Parameter(torch.zeros(scores.shape[1], dtype=torch.float64))
         else:
             self.bias = 0
 

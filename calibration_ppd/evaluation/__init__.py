@@ -1,4 +1,5 @@
 from .tasks import (
     LoadMetrics,
-    LoadLossFunction
+    LoadLossFunction,
+    MakePredictions
 )
