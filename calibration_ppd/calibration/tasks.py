@@ -36,7 +36,7 @@ def calibrate_logits(train_logits,train_labels,validation_logits,prior_class1,ep
 
     device = torch.device(device)
 
-    N = torch.tensor([len(train_labels == 0), len(train_labels == 1)])
+    N = torch.tensor([(train_labels == 0).sum(), (train_labels == 1).sum()])
     p = torch.tensor([(1-prior_class1), prior_class1])
     w = p[train_labels]/N[train_labels]
     criterion = torch.nn.BCEWithLogitsLoss(weight=w.to(device))
