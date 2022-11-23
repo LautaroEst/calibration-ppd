@@ -1,4 +1,5 @@
 from .tasks import (
     LoadPretrainedModel,
-    InitTorchModel
+    InitTorchModel,
+    LoadTorchModel
 )

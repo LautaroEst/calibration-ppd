@@ -28,7 +28,7 @@ class LogisticRegression(torch.nn.Module):
         return self.temp * input + self.bias
 
 
-def calibrate_logits(train_logits,train_labels,validation_logits,prior_class1,epochs,lr,device):
+def train_calibrator(train_logits,train_labels,prior_class1,epochs,lr,device):
 
     model = LogisticRegression()
     model.train()
@@ -52,14 +52,18 @@ def calibrate_logits(train_logits,train_labels,validation_logits,prior_class1,ep
         loss = criterion(logits,train_labels)
         loss.backward()
         optimizer.step()
-        
+
+    return model, {"temp": model.temp.cpu().detach().numpy(), "bias": model.bias.cpu().detach().numpy()}
+
+def calibrate_logits(model,criterion,logits,labels):
 
     model.eval()
+    device = model.device
     with torch.no_grad():
-        val_logits = torch.from_numpy(validation_logits).to(device)
-        calibrated_logits = model(val_logits)
+        logits = torch.from_numpy(logits).to(device)
+        calibrated_logits = model(logits)
 
-    return calibrated_logits, {"temp": model.temp.cpu().detach().numpy(), "bias": model.bias.cpu().detach().numpy()}
+    return calibrated_logits
 
 
 class DiscriminativeModelCalibration(Task):
@@ -71,18 +75,18 @@ class DiscriminativeModelCalibration(Task):
         "affine_brier": AffineCalBrier,
     }
 
-    def __init__(self,prior_class1,bias,calibration_loss,epochs,lr,device):
+    def __init__(self,prior_class1,bias,calibration_loss,epochs,lr,device,run_on_test=False):
         self.prior_class1 = prior_class1 
         self.bias = bias
         self.calibration_loss = self._losses[calibration_loss]
         self.epochs = epochs
         self.lr = lr
         self.device = device
+        self.run_on_test = run_on_test
         
     def run(self,model_outputs):
         labels_training = model_outputs["calibration_train"]["labels"]
         logits_training = model_outputs["calibration_train"]["logits"]
-        logits_validation = model_outputs["calibration_validation"]["logits"]
 
         # calibrated_logits, parameters = calibrate(
         #     logits_training, 
@@ -94,18 +98,48 @@ class DiscriminativeModelCalibration(Task):
         #     quiet=True
         # )
 
-        calibrated_logits, parameters = calibrate_logits(
+        model, parameters = train_calibrator(
             logits_training,
             labels_training,
-            logits_validation,
             prior_class1=self.prior_class1,
             epochs=self.epochs,
             lr=self.lr,
             device=torch.device(self.device)
         )
-        
+        criterion = torch.nn.BCEWithLogitsLoss()
+
+        logits_validation = model_outputs["calibration_validation"]["logits"]
+        labels_validation = model_outputs["calibration_validation"]["labels"]
+        cal_logits_val = calibrate_logits(model,logits_validation,labels_validation)
+        cal_logloss_val = criterion(cal_logits_val,labels_validation).item()
+        uncal_logloss_val = criterion(logits_validation,labels_validation).item()
+
+        if self.run_on_test:
+            logits_test = model_outputs["training_validation"]["logits"]
+            labels_test = model_outputs["training_validation"]["labels"]
+            cal_logits_test = calibrate_logits(model,logits_test,labels_test)
+            cal_logloss_test = criterion(cal_logits_test,labels_test).item()
+            uncal_logloss_test = criterion(logits_test,labels_test).item()
+            cal_logits_test = cal_logits_test.cpu().detach().numpy()
+            logits_test = logits_test.cpu().detach().numpy()
+        else:
+            logits_test = None
+            cal_logits_test = None
+            cal_logloss_test, uncal_logloss_test = "N/A", "N/A"
+
         return {
-            "logits": calibrated_logits.cpu().detach().numpy(),
+            "logits": {
+                "calibrated_validation": cal_logits_val.cpu().detach().numpy(),
+                "uncalibrated_validation": logits_validation.cpu().detach().numpy(),
+                "calibrated_test": cal_logits_test,
+                "uncalibrated_test": logits_test,
+            },
+            "logloss": {
+                "calibrated_validation": cal_logloss_val,
+                "uncalibrated_validation": uncal_logloss_val,
+                "calibrated_test": cal_logloss_test,
+                "uncalibrated_test": uncal_logloss_test
+            },
             "parameters": parameters,
             "prior_class1": self.prior_class1
         }

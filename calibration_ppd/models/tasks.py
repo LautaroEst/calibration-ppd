@@ -1,8 +1,11 @@
 
+import os
+import pickle
 from ..core import Task
 import transformers
 from . import torch_models as tm
-
+import torch
+from collections import OrderedDict
 
 class LoadPretrainedModel(Task):
 
@@ -33,4 +36,15 @@ class InitTorchModel(Task):
         all_args = {**input_args,**self.args}
         model = self.model_cls(**all_args)
         return model
+        
+
+# class LoadTorchModel(Task):
+
+#     def __init__(self,path,task,**kwargs):
+#         self.path = os.path.join(path,os.listdir(path)[0])
+
+#     def run(self):
+#         # with open(self.path,"rb") as f:
+#         #     model = pickle.load(f)
+#         state_dict = OrderedDict([(key.split("model.")[-1], params) for key, params in torch.load(self.path)["state_dict"].items()])
         
