@@ -55,12 +55,12 @@ def train_calibrator(train_logits,train_labels,prior_class1,epochs,lr,device):
 
     return model, {"temp": model.temp.cpu().detach().numpy(), "bias": model.bias.cpu().detach().numpy()}
 
-def calibrate_logits(model,criterion,logits,labels):
+def calibrate_logits(model,logits):
 
     model.eval()
-    device = model.device
+    device = next(model.parameters()).device
     with torch.no_grad():
-        logits = torch.from_numpy(logits).to(device)
+        logits = logits.to(device)
         calibrated_logits = model(logits)
 
     return calibrated_logits
@@ -108,22 +108,24 @@ class DiscriminativeModelCalibration(Task):
         )
         criterion = torch.nn.BCEWithLogitsLoss()
 
-        logits_validation = model_outputs["calibration_validation"]["logits"]
-        labels_validation = model_outputs["calibration_validation"]["labels"]
-        cal_logits_val = calibrate_logits(model,logits_validation,labels_validation)
+        logits_validation = torch.tensor(model_outputs["calibration_validation"]["logits"],dtype=torch.float,device=torch.device(self.device))
+        labels_validation = torch.tensor(model_outputs["calibration_validation"]["labels"],dtype=torch.float,device=torch.device(self.device))
+        cal_logits_val = calibrate_logits(model,logits_validation)
         cal_logloss_val = criterion(cal_logits_val,labels_validation).item()
         uncal_logloss_val = criterion(logits_validation,labels_validation).item()
 
         if self.run_on_test:
-            logits_test = model_outputs["training_validation"]["logits"]
-            labels_test = model_outputs["training_validation"]["labels"]
-            cal_logits_test = calibrate_logits(model,logits_test,labels_test)
+            logits_test = torch.tensor(model_outputs["training_validation"]["logits"],dtype=torch.float,device=torch.device(self.device))
+            labels_test = torch.tensor(model_outputs["training_validation"]["labels"],dtype=torch.float,device=torch.device(self.device))
+            cal_logits_test = calibrate_logits(model,logits_test)
             cal_logloss_test = criterion(cal_logits_test,labels_test).item()
             uncal_logloss_test = criterion(logits_test,labels_test).item()
             cal_logits_test = cal_logits_test.cpu().detach().numpy()
             logits_test = logits_test.cpu().detach().numpy()
+            labels_test = labels_test.cpu().detach().numpy()
         else:
             logits_test = None
+            labels_test = None
             cal_logits_test = None
             cal_logloss_test, uncal_logloss_test = "N/A", "N/A"
 
@@ -133,6 +135,10 @@ class DiscriminativeModelCalibration(Task):
                 "uncalibrated_validation": logits_validation.cpu().detach().numpy(),
                 "calibrated_test": cal_logits_test,
                 "uncalibrated_test": logits_test,
+            },
+            "labels": {
+                "validation": labels_validation.cpu().detach().numpy(),
+                "test": labels_test
             },
             "logloss": {
                 "calibrated_validation": cal_logloss_val,
