@@ -29,7 +29,7 @@ def make_pipeline(
 pipeline = make_pipeline(
     model_name = "bert",
     bias = True, # cambiando el parámetro bias habilita o deshabilita el temp_scaling
-    priors = [0.5], # podemos probar cambiando esto
-    calibration_loss = "affine_ece"
+    priors = None, # podemos probar cambiando esto
+    calibration_loss = "affine_log"
 )
 runs = {0: pipeline}
