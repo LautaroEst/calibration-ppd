@@ -38,7 +38,7 @@ def train_calibrator(train_logits,train_labels,prior_class1,epochs,lr,device):
 
     N = torch.tensor([(train_labels == 0).sum(), (train_labels == 1).sum()])
     p = torch.tensor([(1-prior_class1), prior_class1])
-    w = p[train_labels]/N[train_labels]
+    w = p[train_labels]/N[train_labels]#*len(train_labels)
     criterion = torch.nn.BCEWithLogitsLoss(weight=w.to(device))
 
     train_logits = torch.from_numpy(train_logits).to(device,dtype=torch.float)
@@ -65,6 +65,22 @@ def calibrate_logits(model,logits):
 
     return calibrated_logits
 
+def calculate_logloss(model, logits, labels, prior):
+    device = next(model.parameters()).device
+
+    N = torch.tensor([(labels == 0).sum(), (labels == 1).sum()],device=device)
+    p = torch.tensor([(1-prior), prior],device=device)
+    w = p[labels.type(torch.long)]/N[labels.type(torch.long)]#*len(labels)
+    
+    criterion = torch.nn.BCEWithLogitsLoss(weight=w.to(device))
+    # criterion = torch.nn.BCEWithLogitsLoss()
+    cal_logits = calibrate_logits(model,logits)
+    cal_logloss = criterion(cal_logits,labels).item()
+    uncal_logloss = criterion(logits,labels).item()
+    cal_logits = cal_logits.cpu().detach().numpy()
+    uncal_logits = logits.cpu().detach().numpy()
+    return uncal_logits, cal_logits, cal_logloss, uncal_logloss
+
 
 class DiscriminativeModelCalibration(Task):
 
@@ -75,9 +91,10 @@ class DiscriminativeModelCalibration(Task):
         "affine_brier": AffineCalBrier,
     }
 
-    def __init__(self,prior_class1,bias,calibration_loss,epochs,lr,device,run_on_test=False):
-        self.prior_class1 = prior_class1 
-        self.bias = bias
+    def __init__(self, training_prior, evaluation_prior, calibration_loss, epochs,lr, device, run_on_test=False):
+        self.training_prior = training_prior
+        self.evaluation_prior = evaluation_prior
+        self.bias = True
         self.calibration_loss = self._losses[calibration_loss]
         self.epochs = epochs
         self.lr = lr
@@ -101,26 +118,41 @@ class DiscriminativeModelCalibration(Task):
         model, parameters = train_calibrator(
             logits_training,
             labels_training,
-            prior_class1=self.prior_class1,
+            prior_class1=self.training_prior,
             epochs=self.epochs,
             lr=self.lr,
             device=torch.device(self.device)
         )
-        criterion = torch.nn.BCEWithLogitsLoss()
+        # criterion = torch.nn.BCEWithLogitsLoss()
 
         logits_validation = torch.tensor(model_outputs["calibration_validation"]["logits"],dtype=torch.float,device=torch.device(self.device))
         labels_validation = torch.tensor(model_outputs["calibration_validation"]["labels"],dtype=torch.float,device=torch.device(self.device))
-        cal_logits_val = calibrate_logits(model,logits_validation)
-        cal_logloss_val = criterion(cal_logits_val,labels_validation).item()
-        uncal_logloss_val = criterion(logits_validation,labels_validation).item()
+        uncal_logits_validation, cal_logits_validation, cal_logloss_validation, uncal_logloss_validation = calculate_logloss(
+            model, 
+            logits_validation, 
+            labels_validation, 
+            self.evaluation_prior
+        )
+
+        # cal_logits_val = calibrate_logits(model,logits_validation)
+        # cal_logloss_val = criterion(cal_logits_val,labels_validation).item()
+        # uncal_logloss_val = criterion(logits_validation,labels_validation).item()
 
         if self.run_on_test:
             logits_test = torch.tensor(model_outputs["training_validation"]["logits"],dtype=torch.float,device=torch.device(self.device))
             labels_test = torch.tensor(model_outputs["training_validation"]["labels"],dtype=torch.float,device=torch.device(self.device))
-            cal_logits_test = calibrate_logits(model,logits_test)
-            cal_logloss_test = criterion(cal_logits_test,labels_test).item()
-            uncal_logloss_test = criterion(logits_test,labels_test).item()
-            cal_logits_test = cal_logits_test.cpu().detach().numpy()
+            # cal_logits_test = calibrate_logits(model,logits_test)
+            # cal_logloss_test = criterion(cal_logits_test,labels_test).item()
+            # uncal_logloss_test = criterion(logits_test,labels_test).item()
+            # cal_logits_test = cal_logits_test.cpu().detach().numpy()
+
+            uncal_logits_test, cal_logits_test, cal_logloss_test, uncal_logloss_test = calculate_logloss(
+                model, 
+                logits_test, 
+                labels_test, 
+                self.evaluation_prior
+            )
+
             logits_test = logits_test.cpu().detach().numpy()
             labels_test = labels_test.cpu().detach().numpy()
         else:
@@ -131,23 +163,24 @@ class DiscriminativeModelCalibration(Task):
 
         return {
             "logits": {
-                "calibrated_validation": cal_logits_val.cpu().detach().numpy(),
-                "uncalibrated_validation": logits_validation.cpu().detach().numpy(),
+                "calibrated_validation": cal_logits_validation,
+                "uncalibrated_validation": uncal_logits_validation,
                 "calibrated_test": cal_logits_test,
-                "uncalibrated_test": logits_test,
+                "uncalibrated_test": uncal_logits_test,
             },
             "labels": {
                 "validation": labels_validation.cpu().detach().numpy(),
                 "test": labels_test
             },
             "logloss": {
-                "calibrated_validation": cal_logloss_val,
-                "uncalibrated_validation": uncal_logloss_val,
+                "calibrated_validation": cal_logloss_validation,
+                "uncalibrated_validation": uncal_logloss_validation,
                 "calibrated_test": cal_logloss_test,
                 "uncalibrated_test": uncal_logloss_test
             },
             "parameters": parameters,
-            "prior_class1": self.prior_class1
+            "training_prior": self.training_prior,
+            "evaluation_prior": self.evaluation_prior
         }
 
     def save(self,output,output_dir):
