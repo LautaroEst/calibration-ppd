@@ -1,4 +1,7 @@
 from .tasks import (
     LoadPretrainedModel,
-    InitTorchModel
+    InitModelFromTokenizer
+)
+from .torch_models import (
+    CBOW
 )

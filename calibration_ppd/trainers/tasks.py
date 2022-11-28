@@ -1,3 +1,4 @@
+import os
 from typing import Callable, Optional
 from ..core import Task
 from .pytorch import ClassificationLightningModule, TBLogger
@@ -65,11 +66,11 @@ class TrainSupervisedTorchModel(Task):
             ## TODO: implement saving
             pass
 
-        return model
+        return pl_model
 
     def save(self,output,output_dir):
-        ## TODO: implement saving
-        raise NotImplementedError
+        with open(os.path.join(output_dir,"state_dict.pkl"),"wb") as f:
+            torch.save(output.model.state_dict(),f)
 
     def load(self,output_dir):
         ## TODO: implement loading

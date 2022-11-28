@@ -1,4 +1,5 @@
 
+import json
 import os
 import pickle
 from ..core import Task
@@ -26,25 +27,42 @@ class LoadPretrainedModel(Task):
         return classifier
 
 
-class InitTorchModel(Task):
+class InitModelFromTokenizer(Task):
 
     def __init__(self,name,**args):
+        self.name = name
         self.model_cls = getattr(tm,name)
         self.args = args
         
-    def run(self,**input_args):
-        all_args = {**input_args,**self.args}
-        model = self.model_cls(**all_args)
+    def run(self,tokenizer):
+        self.num_embeddings = len(tokenizer)
+        self.pad_idx = tokenizer.pad_token_id
+        model = self.model_cls(num_embeddings=self.num_embeddings,pad_idx=self.pad_idx,**self.args)
         return model
-        
 
-# class LoadTorchModel(Task):
+    def save(self,output,output_dir):
+        with open(os.path.join(output_dir,"config.json"),"w") as f:
+            json.dump({
+                "name": self.name,
+                "num_embeddings": self.num_embeddings,
+                "pad_idx": self.pad_idx,
+                **self.args
+            },f)
+        with open(os.path.join(output_dir,"state_dict.pkl"),"wb") as f:
+            torch.save(output.state_dict(),f)
 
-#     def __init__(self,path,task,**kwargs):
-#         self.path = os.path.join(path,os.listdir(path)[0])
+    def load(self,output_dir):
+        with open(os.path.join(output_dir,"config.json"),"r") as f:
+            config = json.load(f)
+        name = config.pop("name")
+        num_embeddings = config.pop("num_embeddings")
+        pad_idx = config.pop("pad_idx")
 
-#     def run(self):
-#         # with open(self.path,"rb") as f:
-#         #     model = pickle.load(f)
-#         state_dict = OrderedDict([(key.split("model.")[-1], params) for key, params in torch.load(self.path)["state_dict"].items()])
+        model_cls = getattr(tm,name)
+        model = model_cls(num_embeddings=num_embeddings,pad_idx=pad_idx,**config)
+
+        with open(os.path.join(output_dir,"state_dict.pkl"),"rb") as f:
+            state_dict = torch.load(f)
+        model.load_state_dict(state_dict)
+        return model        
         
