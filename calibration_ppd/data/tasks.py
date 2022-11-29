@@ -41,7 +41,7 @@ class LoadQuoraDataset(Task):
 
     def load(self,output_dir):
         directories = os.listdir(output_dir)
-        data = {directory: load_from_disk(output_dir) for directory in directories}
+        data = {directory: load_from_disk(os.path.join(output_dir,directory)) for directory in directories}
         return data
 
 

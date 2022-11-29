@@ -2,6 +2,7 @@
 n_jobs = 1
 
 def make_pipeline(
+    model,
     max_epochs,
     batch_size,
     learning_rate,
@@ -9,6 +10,27 @@ def make_pipeline(
     weight_decay,
     random_seed
 ):
+
+    if model == "bert":
+        model_init_config = {
+            "task": "LoadPretrainedModel",
+            "input": None,
+            "output": "model",
+            "model": "AutoModelForSequenceClassification",
+            "source": "bert-base-uncased",
+            "num_labels": 1
+        }
+    elif model == "cbow":
+        model_init_config = {
+            "task": "InitModelFromTokenizer",
+            "input": {"tokenizer": "tokenizer"},
+            "output": "model",
+            "name": "CBOW",
+            "hidden_size": 400,
+            "output_size": 1,
+            "random_seed": random_seed
+        }
+
     return [
         ("Load Quora Dataset", {
             "task": "LoadQuoraDataset",
@@ -57,27 +79,22 @@ def make_pipeline(
             "random_seed": random_seed,
             "num_workers": 8
         }),
-        ("Init Model", {
-            "task": "LoadPretrainedModel",
-            "input": None,
-            "output": "model",
-            "model": "AutoModelForSequenceClassification",
-            "source": "bert-base-uncased",
-            "num_labels": 1
-        }),
         ("Load metric", {
             "task": "LoadMetrics",
             "input": None,
             "output": "metrics",
             "accuracy": {},
-            "fscore": {"beta": 1, "average": "macro"}
+            "fscore": {"beta": 1, "average": "macro"},
+            "cache": True
         }),
         ("Load loss function", {
             "task": "LoadLossFunction",
             "input": None,
             "output": "loss_function",
-            "name": "BCEWithLogitsLoss"
+            "name": "BCEWithLogitsLoss",
+            "cache": True
         }),
+        ("Init Model", model_init_config),
         ("Init optimization procedure", {
             "task": "InitAdamWOptimization",
             "input": {"model": "model"},
@@ -120,12 +137,25 @@ def make_pipeline(
         })
     ]
 
-train_params = dict(
-    max_epochs = 1,
-    batch_size = 16,
-    learning_rate = 2e-5,
-    gradient_clip = 1.0,
-    weight_decay = 0.0,
-    random_seed = 72435821
-)
-runs = {"bert": make_pipeline(**train_params)}
+
+random_seed = 72435821
+runs = {
+    "cbow": make_pipeline(
+        model = "cbow",
+        max_epochs = 3,
+        batch_size = 32,
+        learning_rate = 1e-3,
+        gradient_clip = None,
+        weight_decay = 0.0,
+        random_seed = random_seed
+    ),
+    "bert": make_pipeline(
+        model = "bert",
+        max_epochs = 1,
+        batch_size = 16,
+        learning_rate = 2e-5,
+        gradient_clip = 1.0,
+        weight_decay = 0.0,
+        random_seed = random_seed
+    )
+}
