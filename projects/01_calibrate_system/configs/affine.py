@@ -28,7 +28,7 @@ def make_pipeline(
             "evaluation_prior": evaluation_prior,
             "calibration_loss": "affine_log",
             "epochs": 10000,
-            "lr": 5e-3,
+            "lr": 5e-4,
             "device": "cuda:0",
             "run_on_test": True
         })
