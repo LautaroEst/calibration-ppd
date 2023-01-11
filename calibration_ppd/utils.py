@@ -1,6 +1,12 @@
 from importlib.machinery import SourceFileLoader
 from types import ModuleType
 
+ROOT_DIR = "/".join(__file__.split("/")[:-2])
+DATA_DIR = ROOT_DIR + "/data"
+DATASETS_DIR = DATA_DIR + "/datasets"
+MODELS_DIR = DATA_DIR + "/models"
+SCRIPTS_DIR = ROOT_DIR + "/scripts"
+PROJECTS_DIR = ROOT_DIR + "/projects"
 
 
 def import_configs_objs(config_file):

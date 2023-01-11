@@ -1,12 +1,13 @@
-from copy import deepcopy
 import os
 
 from ..core import Task
-from datasets import DatasetDict, Dataset, load_dataset, ClassLabel, load_from_disk
-from typing import Union
+from datasets import DatasetDict, Dataset, load_dataset, ClassLabel, load_from_disk, Features, Value
+from ..utils import DATASETS_DIR
 
 import torch
 from torch.utils.data import RandomSampler, DataLoader
+
+import pandas as pd
 
 
 
@@ -14,45 +15,19 @@ class LoadQuoraDataset(Task):
 
     def __init__(self):
         self.random_seed = 17283
-        self.opt = "split_validation" # "split_validation" (opción 1) | "split_train" (opción 2)
 
     def run(self):
-        qqp_data = load_dataset("glue","qqp")
+        qqp_data = load_dataset("glue","qqp",cache_dir=DATASETS_DIR)
 
-        if self.opt == "split_validation":
+        data_splitted = qqp_data["train"].train_test_split(test_size=0.2,stratify_by_column="label")
+        data_splitted_splitted = data_splitted["test"].train_test_split(test_size=0.5,stratify_by_column="label")
 
-            qqp_train_splitted = qqp_data["train"].train_test_split(test_size=0.2,seed=self.random_seed,stratify_by_column="label")
-            qqp_val_splitted = qqp_data["validation"].train_test_split(test_size=0.2,seed=self.random_seed,stratify_by_column="label")
-
-            data = {
-                "training": DatasetDict({
-                    "train": qqp_train_splitted["train"],
-                    "validation": qqp_train_splitted["test"],
-                    "test": qqp_data["test"]
-                }),
-                "calibration": DatasetDict({
-                    "train": qqp_val_splitted["train"],
-                    "validation": qqp_val_splitted["test"],
-                    "test": deepcopy(qqp_data["test"])
-                })
-            }
-        elif self.opt == "split_train":
-            qqp_train_splitted = qqp_data["train"].train_test_split(test_size=0.2,seed=self.random_seed,stratify_by_column="label")
-
-            data = {
-                "training": DatasetDict({
-                    "train": qqp_train_splitted["train"],
-                    "validation": qqp_data["validation"],
-                    "test": qqp_data["test"]
-                }),
-                "calibration": DatasetDict({
-                    "train": qqp_train_splitted["test"],
-                    "validation": deepcopy(qqp_data["validation"]),
-                    "test": deepcopy(qqp_data["test"])
-                })
-            }
-        else:
-            raise ValueError("Opción no válida")
+        data = DatasetDict({
+            "model_train": data_splitted["train"],
+            "calibration_train": data_splitted_splitted["train"],
+            "validation": data_splitted_splitted["test"],
+            "test": qqp_data["validation"]
+        })
 
         return data
 
@@ -66,7 +41,7 @@ class LoadQuoraDataset(Task):
 
     def load(self,output_dir):
         directories = os.listdir(output_dir)
-        data = {directory: load_from_disk(output_dir) for directory in directories}
+        data = {directory: load_from_disk(os.path.join(output_dir,directory)) for directory in directories}
         return data
 
 
@@ -77,19 +52,23 @@ class LoadTwitterDataset(Task):
         self.random_seed = 17283
 
     def run(self):
-        ## TODO: descargar y dividir este dataset
-        data = {
-            "training": {
-                "train": [],
-                "val": [],
-                "test": []
-            },
-            "calibration": {
-                "train": [],
-                "val": [],
-                "test": []
-            }
-        }
+        with open(os.path.join(DATASETS_DIR,"a.toks"),"r") as f:
+            question1 = [s[:-1] for s in f.readlines()]
+        with open(os.path.join(DATASETS_DIR,"b.toks"),"r") as f:
+            question2 = [s[:-1] for s in f.readlines()]
+        with open(os.path.join(DATASETS_DIR,"sim.txt"),"r") as f:
+            labels = [s[:-1] for s in f.readlines()]
+        dataset = pd.DataFrame.from_dict({"question1": question1, "question2": question2, "label": labels})
+        dataset["question1"] = dataset["question1"].astype(str)
+        dataset["question2"] = dataset["question2"].astype(str)
+        dataset["label"] = dataset["label"].astype(int)
+        data = DatasetDict({
+            "test": Dataset.from_pandas(dataset,Features.from_dict({
+                "question1": {"dtype": "string", "id": None, "_type": "Value"},
+                "question2": {"dtype": "string", "id": None, "_type": "Value"},
+                "label": {"num_classes": 2, "names": ["not-sim","sim"], "_type": "ClassLabel"}
+            }))
+        })
         return data
 
     def save(self,output,output_dir):

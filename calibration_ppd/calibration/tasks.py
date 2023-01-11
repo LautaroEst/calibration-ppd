@@ -21,7 +21,7 @@ class LogisticRegression(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.temp = torch.nn.Parameter(torch.tensor(1e-3))
+        self.temp = torch.nn.Parameter(torch.tensor(1.))
         self.bias = torch.nn.Parameter(torch.tensor(0.))
 
     def forward(self,input):
@@ -44,6 +44,7 @@ def train_calibrator(train_logits,train_labels,prior_class1,epochs,lr,device):
     train_logits = torch.from_numpy(train_logits).to(device,dtype=torch.float)
     train_labels = torch.from_numpy(train_labels).to(device,dtype=torch.float)
     model.to(device)
+    loss_history = []
     for e in range(epochs):
 
         optimizer.zero_grad()
@@ -52,16 +53,16 @@ def train_calibrator(train_logits,train_labels,prior_class1,epochs,lr,device):
         loss = criterion(logits,train_labels)
         loss.backward()
         optimizer.step()
+        
+        loss_history.append(loss.item())
 
-    return model, {"temp": model.temp.cpu().detach().numpy(), "bias": model.bias.cpu().detach().numpy()}
+    return model, {"temp": model.temp.cpu().detach().numpy(), "bias": model.bias.cpu().detach().numpy(), "loss_history": loss_history}
 
 def calibrate_logits(model,logits):
 
-    model.eval()
     device = next(model.parameters()).device
-    with torch.no_grad():
-        logits = logits.to(device)
-        calibrated_logits = model(logits)
+    logits = logits.to(device)
+    calibrated_logits = model(logits)
 
     return calibrated_logits
 
@@ -74,12 +75,16 @@ def calculate_logloss(model, logits, labels, prior):
     
     criterion = torch.nn.BCEWithLogitsLoss(weight=w.to(device))
     # criterion = torch.nn.BCEWithLogitsLoss()
-    cal_logits = calibrate_logits(model,logits)
-    cal_logloss = criterion(cal_logits,labels).item()
-    uncal_logloss = criterion(logits,labels).item()
-    cal_logits = cal_logits.cpu().detach().numpy()
+    model.eval()
+    with torch.no_grad():
+        cal_logits = calibrate_logits(model,logits)
+        uncal_logloss = criterion(logits,labels).item()
+        cal_logloss = criterion(cal_logits,labels).item()
+
     uncal_logits = logits.cpu().detach().numpy()
-    return uncal_logits, cal_logits, cal_logloss, uncal_logloss
+    cal_logits = cal_logits.cpu().detach().numpy()
+    
+    return uncal_logits, cal_logits, uncal_logloss, cal_logloss
 
 
 class DiscriminativeModelCalibration(Task):
@@ -105,13 +110,15 @@ class DiscriminativeModelCalibration(Task):
         labels_training = model_outputs["calibration_train"]["labels"]
         logits_training = model_outputs["calibration_train"]["logits"]
 
-        # calibrated_logits, parameters = calibrate(
-        #     logits_training, 
-        #     labels_training, 
-        #     logits_validation, 
+        # logits_validation = torch.tensor(model_outputs["validation"]["logits"],dtype=torch.float,device=torch.device(self.device))
+
+        # _, luciana_parameters = calibrate(
+        #     torch.tensor(logits_training,dtype=torch.float), 
+        #     torch.tensor(labels_training,dtype=torch.long), 
+        #     torch.tensor(logits_validation,dtype=torch.float), 
         #     self.calibration_loss, 
         #     bias=self.bias, 
-        #     priors=self.priors, 
+        #     priors=[1-self.training_prior,self.training_prior], 
         #     quiet=True
         # )
 
@@ -123,65 +130,65 @@ class DiscriminativeModelCalibration(Task):
             lr=self.lr,
             device=torch.device(self.device)
         )
-        # criterion = torch.nn.BCEWithLogitsLoss()
 
-        logits_validation = torch.tensor(model_outputs["calibration_validation"]["logits"],dtype=torch.float,device=torch.device(self.device))
-        labels_validation = torch.tensor(model_outputs["calibration_validation"]["labels"],dtype=torch.float,device=torch.device(self.device))
-        uncal_logits_validation, cal_logits_validation, cal_logloss_validation, uncal_logloss_validation = calculate_logloss(
+        # print(luciana_parameters,parameters)
+
+        logits_validation = torch.tensor(model_outputs["validation"]["logits"],dtype=torch.float,device=torch.device(self.device))
+        labels_validation = torch.tensor(model_outputs["validation"]["labels"],dtype=torch.float,device=torch.device(self.device))
+        uncal_logits_validation, cal_logits_validation, uncal_logloss_validation, cal_logloss_validation = calculate_logloss(
             model, 
             logits_validation, 
             labels_validation, 
             self.evaluation_prior
         )
 
-        # cal_logits_val = calibrate_logits(model,logits_validation)
-        # cal_logloss_val = criterion(cal_logits_val,labels_validation).item()
-        # uncal_logloss_val = criterion(logits_validation,labels_validation).item()
+        results = {
+            "logits": {
+                    "calibrated_validation": cal_logits_validation,
+                    "uncalibrated_validation": uncal_logits_validation,
+                    "qqp_calibrated_test": None,
+                    "qqp_uncalibrated_test": None,
+                    "twitter_calibrated_test": None,
+                    "twitter_uncalibrated_test": None,
+                },
+                "labels": {
+                    "validation": labels_validation.cpu().detach().numpy(),
+                    "qqp_test": None,
+                    "twitter_test": None
+                },
+                "logloss": {
+                    "calibrated_validation": cal_logloss_validation,
+                    "uncalibrated_validation": uncal_logloss_validation,
+                    "qqp_calibrated_test": None,
+                    "qqp_uncalibrated_test": None,
+                    "twitter_calibrated_test": None,
+                    "twitter_uncalibrated_test": None
+                },
+                "parameters": parameters,
+                "training_prior": self.training_prior,
+                "evaluation_prior": self.evaluation_prior
+        }
 
         if self.run_on_test:
-            logits_test = torch.tensor(model_outputs["training_validation"]["logits"],dtype=torch.float,device=torch.device(self.device))
-            labels_test = torch.tensor(model_outputs["training_validation"]["labels"],dtype=torch.float,device=torch.device(self.device))
-            # cal_logits_test = calibrate_logits(model,logits_test)
-            # cal_logloss_test = criterion(cal_logits_test,labels_test).item()
-            # uncal_logloss_test = criterion(logits_test,labels_test).item()
-            # cal_logits_test = cal_logits_test.cpu().detach().numpy()
 
-            uncal_logits_test, cal_logits_test, cal_logloss_test, uncal_logloss_test = calculate_logloss(
-                model, 
-                logits_test, 
-                labels_test, 
-                self.evaluation_prior
-            )
+            for dataset in ["qqp", "twitter"]:
+                logits_test = torch.tensor(model_outputs[f"{dataset}_test"]["logits"],dtype=torch.float,device=torch.device(self.device))
+                labels_test = torch.tensor(model_outputs[f"{dataset}_test"]["labels"],dtype=torch.float,device=torch.device(self.device))
 
-            logits_test = logits_test.cpu().detach().numpy()
-            labels_test = labels_test.cpu().detach().numpy()
-        else:
-            logits_test = None
-            labels_test = None
-            cal_logits_test = None
-            cal_logloss_test, uncal_logloss_test = "N/A", "N/A"
+                uncal_logits_test, cal_logits_test, uncal_logloss_test, cal_logloss_test = calculate_logloss(
+                    model, 
+                    logits_test, 
+                    labels_test, 
+                    self.evaluation_prior
+                )
 
-        return {
-            "logits": {
-                "calibrated_validation": cal_logits_validation,
-                "uncalibrated_validation": uncal_logits_validation,
-                "calibrated_test": cal_logits_test,
-                "uncalibrated_test": uncal_logits_test,
-            },
-            "labels": {
-                "validation": labels_validation.cpu().detach().numpy(),
-                "test": labels_test
-            },
-            "logloss": {
-                "calibrated_validation": cal_logloss_validation,
-                "uncalibrated_validation": uncal_logloss_validation,
-                "calibrated_test": cal_logloss_test,
-                "uncalibrated_test": uncal_logloss_test
-            },
-            "parameters": parameters,
-            "training_prior": self.training_prior,
-            "evaluation_prior": self.evaluation_prior
-        }
+                results["logits"][f"{dataset}_uncalibrated_test"] = uncal_logits_test
+                results["logits"][f"{dataset}_calibrated_test"] = cal_logits_test
+                results["logloss"][f"{dataset}_uncalibrated_test"] = uncal_logloss_test
+                results["logloss"][f"{dataset}_calibrated_test"] = cal_logloss_test
+                results["labels"][f"{dataset}_test"] = labels_test.cpu().detach().numpy()
+
+        return results
 
     def save(self,output,output_dir):
         # np.savez_compressed(output_dir+"/results.npz",logits=output["logits"])

@@ -1,0 +1,20 @@
+
+[
+    {
+        "action": "download_huggingface_dataset",
+        "path": "glue",
+        "name": "qqp"
+    },
+    {
+        "action": "download_file",
+        "url": "https://git.uwaterloo.ca/jimmylin/Castor-data/-/raw/sst/twitterPPDB/test/a.toks"
+    },
+    {
+        "action": "download_file",
+        "url": "https://git.uwaterloo.ca/jimmylin/Castor-data/-/raw/sst/twitterPPDB/test/b.toks"
+    },
+    {
+        "action": "download_file",
+        "url": "https://git.uwaterloo.ca/jimmylin/Castor-data/-/raw/sst/twitterPPDB/test/sim.txt"
+    }
+]
